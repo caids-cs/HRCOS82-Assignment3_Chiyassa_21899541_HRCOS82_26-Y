@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+title: CAIDS Reference Pipeline
+message: If you use this software, please cite it as below.
+type: software
+authors:
+  - given-names: Themba
+    family-names: Masombuka
+    affiliation: >-
+      Centre for Augmented Intelligence and Data Sciences,
+      University of South Africa
+    email: masomkt@unisa.ac.za
+abstract: >-
+  A shared pipeline for predictive modelling on event logs, applying one
+  canonical schema, feature representation, splitting rule and evaluation
+  protocol across e-learning and DevOps domains.
+keywords:
+  - machine learning
+  - learning analytics
+  - DevOps
+  - event logs
+  - reproducible research
+license: MIT
+version: 0.1.0
+date-released: '2026-08-31'

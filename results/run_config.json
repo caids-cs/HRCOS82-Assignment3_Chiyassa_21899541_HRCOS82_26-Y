@@ -1,0 +1,10 @@
+{
+  "source": "synthetic:elearning",
+  "cutoff_fraction": 0.3,
+  "seed": 42,
+  "class_weight_balanced": true,
+  "selected_model": "logistic_regression",
+  "n_entities": 900,
+  "n_features": 28,
+  "positive_rate": 0.18
+}

@@ -2,7 +2,7 @@
 
 **Author:** Carol Mwaba Chiyassa
 **Student number:** 21899541
-**Module:** HRCOS82 — BSc Honours Computing, UNISA
+**Module:** HRCOS82,BSc Honours Computing, UNISA
 
 ## Study overview
 

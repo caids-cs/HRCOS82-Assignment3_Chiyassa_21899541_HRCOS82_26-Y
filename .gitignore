@@ -1,4 +1,5 @@
 # ---------------------------------------------------------------------------
+# Data files are kept locally and excluded from version control.
 # DATA — never committed. Ethics clearance 9396 and POPIA.
 # ---------------------------------------------------------------------------
 data/raw/*
@@ -18,6 +19,7 @@ data/processed/*
 *.dta
 # ...but results tables ARE meant to be committed
 !results/tables/*.csv
+!results/oulad/tables/*.csv
 
 # ---------------------------------------------------------------------------
 # Secrets
@@ -47,3 +49,16 @@ env/
 .idea/
 .DS_Store
 Thumbs.db
+
+/template_archive/
+
+# Download metadata
+*Zone.Identifier*
+*sec.endpointdlp*
+
+# Download metadata
+*Zone.Identifier*
+*sec.endpointdlp*
+
+# Local template archive
+/template_archive/

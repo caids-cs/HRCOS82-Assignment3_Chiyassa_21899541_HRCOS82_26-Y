@@ -1,0 +1,12 @@
+{
+  "random_seed": 42,
+  "selection_metric": "mean validation positive-class F1",
+  "selected_model": "logistic_regression",
+  "balanced_by_model": {
+    "ebm": true,
+    "logistic_regression": true,
+    "majority_baseline": false,
+    "xgboost": true
+  },
+  "decision_threshold": "estimator default; not tuned"
+}

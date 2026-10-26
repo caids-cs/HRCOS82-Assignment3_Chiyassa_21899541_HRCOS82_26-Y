@@ -1,24 +1,26 @@
 cff-version: 1.2.0
-title: CAIDS Reference Pipeline
-message: If you use this software, please cite it as below.
+message: >-
+  If you use this study's software or results, please cite this repository.
+  Original template attribution is retained in
+  docs/CAIDS_TEMPLATE_CITATION.cff.
 type: software
+title: >-
+  An Interpretable Machine Learning Framework for Analysing
+  Learner Engagement Patterns in E-Learning Environments
 authors:
-  - given-names: Themba
-    family-names: Masombuka
-    affiliation: >-
-      Centre for Augmented Intelligence and Data Sciences,
-      University of South Africa
-    email: masomkt@unisa.ac.za
+  - given-names: Carol Mwaba
+    family-names: Chiyassa
+    affiliation: University of South Africa
 abstract: >-
-  A shared pipeline for predictive modelling on event logs, applying one
-  canonical schema, feature representation, splitting rule and evaluation
-  protocol across e-learning and DevOps domains.
+  An OULAD study comparing logistic regression, Explainable Boosting
+  Machines, and XGBoost for academic-risk prediction using learner
+  characteristics and activity from days 0–30 inclusive. Evaluation
+  includes learner-separated validation, held-out testing, permutation
+  importance, paired learner bootstrap comparisons, and five-seed
+  predictive stability analysis.
 keywords:
-  - machine learning
   - learning analytics
-  - DevOps
-  - event logs
+  - OULAD
+  - academic risk
+  - interpretable machine learning
   - reproducible research
-license: MIT
-version: 0.1.0
-date-released: '2026-08-31'

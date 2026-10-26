@@ -1,111 +1,265 @@
-# Start here
+# Start here: OULAD study
 
-You have been given your own repository inside the CAIDS organisation. Only you and
-your supervisor can see it.
+**Author:** Carol Chiyassa
+**Student number:** 21899541
+**Module:** HRCOS82
+**Ethics clearance reference:** 9396 (HRCOS82 class)
 
-This page gets you from nothing to a first result. Allow an hour.
+## 1. Understand the project
 
----
+This study compares logistic regression, Explainable Boosting Machines
+(EBM), and XGBoost for predicting academic risk using OULAD.
+A majority-class classifier provides a reference baseline.
 
-## Step 1 — Install the two things you need
+Predictors include learner characteristics and activity recorded on
+days 0–30 inclusive. Prediction is made after day 30.
 
-**Python, via Miniconda.** Download it from the Anaconda site and install with the
-defaults. If you already have Anaconda, you have this.
+The target is:
 
-**GitHub Desktop.** Download it from desktop.github.com. It is a normal application
-with buttons. You do not need the command line for this module, and if the command
-line is not already comfortable for you, do not start there.
+- 0: Pass or Distinction.
+- 1: Fail or Withdrawn.
 
-Sign in to GitHub Desktop with the account you used to accept the invitation.
+This is an academic-risk target, not a direct engagement label.
 
----
+Read:
 
-## Step 2 — Get your copy of the repository
+- `README.md` for the study overview and results.
+- `data/README.md` for data preparation and handling.
+- `docs/PROTOCOL.md` for the original CAIDS reference protocol.
+- `docs/STUDY_ADAPTATIONS.md` for the study's documented adaptations.
 
-In GitHub Desktop: **File → Clone repository →** pick your repository from the list
-→ choose where to put it on your computer → **Clone**.
+## 2. Open the repository in VS Code
 
-You now have a folder on your machine that is linked to the one on GitHub.
+Select **File → Open Folder** and open the project folder.
 
----
+Select **Terminal → New Terminal**. On Windows, use PowerShell.
+Run commands from the project root, where `run.py` is located.
 
-## Step 3 — Set up the environment
+Commands belong in the terminal. Python code and documentation belong
+in their respective files in the editor.
 
-Open **Anaconda Prompt** (Windows) or a terminal (Mac/Linux), move into the folder
-you just cloned, and run:
+## 3. Set up Python
 
-```
-conda env create -f environment.yml
-conda activate caids
-```
+The recorded study environment uses Python 3.14.0 on Windows 11.
+Miniconda is not required.
 
-This takes a few minutes the first time. It installs the exact library versions
-everyone in the cohort is using, which is why your results will be comparable with
-theirs.
+For a fresh installation, check Python:
 
----
-
-## Step 4 — Run it
-
-```
-python run.py
+```powershell
+python --version
 ```
 
-You should see a table of model results, and new files in `results/`.
+Create a virtual environment if `.venv` does not already exist:
 
-Open `results/figures/model_comparison.png`. That is your first output.
+```powershell
+python -m venv .venv
+```
 
-Note what happened: **logistic regression probably beat the random forest.** That is
-not a mistake in the code. It is the single most useful thing this pipeline will
-teach you.
+Install the dependencies into that environment:
 
----
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
 
-## Step 5 — Send your work back
+In VS Code, open the Command Palette with **Ctrl + Shift + P**,
+select **Python: Select Interpreter**, and choose:
 
-In GitHub Desktop you will see the changed files listed on the left.
+```text
+.venv\Scripts\python.exe
+```
 
-1. Write a short summary in the box at the bottom left — "first run on synthetic
-   data", not "update"
-2. Click **Commit to main**
-3. Click **Push origin**
+The commands below use the environment's Python directly, so activation
+is optional.
 
-Your supervisor can now see exactly what you did and when.
+The recorded package environment is available in
+`results/oulad/environment_freeze.txt`.
 
-Do this **at least once a week**, even when the work is unfinished. A repository
-with one commit the night before submission tells your supervisor nothing, and it
-tells an examiner something worse.
+## 4. Prepare the source data
 
----
+Obtain the original Open University Learning Analytics Dataset (OULAD).
+Place these files in `data/raw/`:
 
-## The rules that matter
+- `studentInfo.csv`
+- `studentRegistration.csv`
+- `studentVle.csv`
 
-**Never put data in the repository.** No student records, no exported LMS files, no
-spreadsheets of marks. `data/raw/` is blocked from committing for exactly this
-reason. If you think you have committed data by accident, tell your supervisor
-immediately — do not just delete the file, because the history keeps it.
+Keep the source files unchanged.
 
-**Never change `src/` to fit your data.** Write an adapter that turns your data into
-the canonical schema instead. Everyone in the cohort works to the same protocol;
-that is what makes your results mean something next to theirs.
+The preparation script creates enrolment-level features and excludes
+enrolments with recorded withdrawal on or before day 30.
+Eligible enrolments without activity receive zero activity counts.
 
-**Read `docs/PROTOCOL.md`.** It is the standard your methodology chapter will be
-marked against.
+Raw data, processed records, individual predictions, and fitted models
+remain local and are excluded from version control.
 
----
+## 5. Check the installation
 
-## Where to ask
+Check installed dependency consistency:
 
-Use the **Issues** tab in your own repository. Click New issue, describe what you
-tried, paste the error, and your supervisor gets an email. It is better than a
-WhatsApp message because it stays attached to the project and you can both find it
-again in three months.
+```powershell
+.\.venv\Scripts\python.exe -m pip check
+```
 
----
+Run the software tests:
 
-## If your connection is unreliable
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_pipeline.py -q
+```
 
-Everything except cloning and pushing works offline. Commit as often as you like
-while you have no connection — commits are local — and push when you are next online.
-If cloning keeps failing, tell your supervisor rather than struggling; there is a
-download-as-ZIP fallback.
+Check that the required source files and scripts exist:
+
+```powershell
+.\.venv\Scripts\python.exe run.py --check
+```
+
+The file check does not train models or validate data contents.
+The software tests check modelling components using artificial records;
+they do not replace checks on the actual study data.
+
+## 6. Run the analysis only when needed
+
+For a fresh analysis with the required data available:
+
+```powershell
+.\.venv\Scripts\python.exe run.py
+```
+
+The runner performs these steps:
+
+1. Prepare OULAD features.
+2. Create learner-separated training, test, and validation allocations.
+3. Validate the data and allocations.
+4. Compare unweighted models using training cross-validation.
+5. Compare balanced models using training cross-validation.
+6. Select settings using mean validation positive-class F1.
+7. Fit the selected configurations and evaluate the reserved test set.
+8. Generate confusion matrices and ROC curves.
+9. Calculate permutation importance.
+10. Calculate paired learner-bootstrap intervals.
+11. Assess five-seed predictive stability.
+12. Record experimental settings and the installed environment.
+
+The runner stops if `results/oulad/` already contains outputs.
+This protects completed results from an accidental rerun.
+
+Do not delete completed results just to bypass this protection.
+A deliberate rerun should use a separate working copy or first preserve
+both the results and the associated local processed files.
+Keep archived data and models excluded from Git.
+
+Existing published results can be inspected without retraining.
+The test set must not be used to choose new settings or features.
+
+## 7. Find the results and graphs
+
+The actual study outputs are in `results/oulad/`.
+
+### Tables
+
+Open `results/oulad/tables/` for:
+
+- Unweighted and balanced cross-validation results.
+- Selected model settings.
+- Primary held-out test results.
+- Permutation importance.
+- Paired bootstrap comparisons.
+- Five-seed stability results.
+
+The primary test table is:
+
+```text
+results/oulad/tables/test_results.csv
+```
+
+### Graphs
+
+Open `results/oulad/figures/` for:
+
+- `test_confusion_matrices.png`
+- `test_roc_curves.png`
+- `permutation_importance_logistic_regression.png`
+- `permutation_importance_ebm.png`
+- `permutation_importance_xgboost.png`
+
+### Reproducibility records
+
+- `results/oulad/selected_settings.json`
+- `results/oulad/experimental_settings.json`
+- `results/oulad/environment_freeze.txt`
+
+The environment record was captured after analysis.
+
+Old template outputs in the local `template_archive/` folder are not
+study findings and are excluded from version control.
+
+## 8. Interpret the findings accurately
+
+Positive-class precision, recall, and F1 refer to Fail or Withdrawn.
+
+Logistic regression was selected using training validation and achieved
+the highest primary test F1 among the compared models. Other models
+performed better on some other metrics.
+
+Permutation importance describes how much a model relies on a predictor.
+It does not establish causality or the direction of an association.
+
+Bootstrap intervals describe uncertainty under the specified resampling
+procedure. Five-seed standard deviations describe variation across those
+runs; they are not confidence intervals.
+
+Predictive stability does not demonstrate explanation stability.
+Educator comprehension and intervention effectiveness were not evaluated.
+
+## 9. Check files before committing
+
+Review the working tree:
+
+```powershell
+git status --short
+```
+
+Check tracked data and environment paths:
+
+```powershell
+git ls-files data .venv
+```
+
+Expected tracked files under `data/` are its README and `.gitkeep`
+placeholders. The virtual environment should not be tracked.
+
+Stage only intended source code, documentation, tests, configuration,
+and aggregate study outputs. Review staged changes before committing:
+
+```powershell
+git diff --cached --stat
+```
+
+Keep raw records, processed records, individual predictions, fitted models,
+credentials, and local archives out of the repository.
+
+If learner-level data is accidentally committed, follow institutional
+reporting and remediation procedures. Removing a file from the current
+folder does not remove it from Git history.
+
+## 10. Understand GitHub checks
+
+The GitHub workflow installs dependencies and runs the software tests
+using Python 3.14 on a Windows runner.
+
+It does not run the full OULAD analysis because the source data is not
+included in the repository.
+
+A successful workflow confirms that the configured software checks pass.
+It does not independently verify every research finding.
+
+## Attribution and ethics
+
+This repository is adapted from the CAIDS Reference Pipeline by
+Themba Masombuka, Centre for Augmented Intelligence and Data Sciences,
+University of South Africa.
+
+Retain the original template's licence and attribution.
+
+The HRCOS82 class ethics clearance reference is **9396**.
+Follow applicable clearance conditions, institutional requirements,
+and data-protection obligations when handling learner records.

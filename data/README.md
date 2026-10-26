@@ -1,48 +1,87 @@
-# Data
+# Study data
 
-**Nothing in this directory is committed.** `data/raw/` and `data/processed/` are
-git-ignored, and `.gitignore` additionally blocks common data file extensions.
+This study uses the Open University Learning Analytics Dataset (OULAD).
 
-## Why
+Raw data, processed learner records, individual predictions, and fitted models
+are stored locally and excluded from version control. This README and the
+`.gitkeep` placeholders are included in the repository.
 
-Research in this programme runs under ethics clearance **9396** and the Protection
-of Personal Information Act (Act 4 of 2013). Learner data may be used only in
-de-identified form, must be stored in the location your supervisor specifies, and
-may not be disclosed to third parties. A git repository — even a private one — is
-not an approved storage location.
+## Ethics and data protection
 
-## How to work
+This research is conducted under ethics clearance **9396** and follows the
+Protection of Personal Information Act (POPIA).
 
-- Put your raw extract in `data/raw/` on your own machine. It stays there.
-- Write a script that reads from `data/raw/` and writes to `data/processed/`.
-- Never edit a raw file. If it needs fixing, fix it in a script.
-- Record in `results/run_config.json` where the data came from and when it was
-  extracted, so the analysis can be traced without the data being present.
+Learner data must be handled in accordance with the applicable clearance
+conditions and institutional requirements. Raw data, processed learner records,
+individual predictions, and fitted models are kept locally and excluded from
+the repository.
 
-## Expected format
+## Required source files
 
-Two CSV files in the canonical schema:
+Place these original OULAD files in `data/raw/`:
 
-**events.csv**
+- `studentInfo.csv`
+- `studentRegistration.csv`
+- `studentVle.csv`
 
-| entity_id | timestamp | event_type | value |
-|---|---|---|---|
-| student_0001 | 2026-02-03 08:14:22 | login | |
-| student_0001 | 2026-02-03 08:19:40 | quiz_attempt | 64 |
+Keep the original source files unchanged. Data preparation is performed by
+`src/prepare_oulad.py`.
 
-**labels.csv**
+## Observation window and eligibility
 
-| entity_id | label |
-|---|---|
-| student_0001 | 0 |
-| student_0002 | 1 |
+Activity features use days 0–30 inclusive, representing prediction after day 30.
 
-`value` is optional and may be blank. `label` is binary, 0 or 1.
+Enrolments with a recorded withdrawal date on or before day 30 are excluded.
+Enrolments with missing withdrawal dates are retained.
+Eligible enrolments without activity in the window receive zero activity counts.
 
-If your source data does not look like this, write an adapter in `src/` that makes
-it look like this. Do not modify the pipeline.
+Late registrations are retained, so not every learner has the same length
+of exposure within the observation window.
 
-## If you commit data by mistake
+## Prediction target
 
-Tell your supervisor immediately. Deleting the file is not sufficient — git keeps
-the history. This is treated as a data-protection incident.
+The binary target is `final_result_binary`:
+
+- 0: Pass or Distinction.
+- 1: Fail or Withdrawn.
+
+This is an academic-risk outcome, not a direct measure of learner engagement.
+
+## Generated local files
+
+The workflow creates the following under `data/processed/`:
+
+- `oulad_30day_activity_verified.csv`: prepared enrolment-level features and target.
+- `enrolment_splits_seed42.csv`: primary train/test allocation and validation folds.
+- `fitted_models/`: fitted preprocessing and model pipelines.
+- `test_predictions.csv`: individual held-out predictions and probabilities.
+
+Learner identifiers are retained for grouping and matching records.
+They are not used as model predictors.
+
+The primary training and test sets contain no overlapping learners.
+Validation folds also separate learners.
+
+## Reproducibility records
+
+Aggregate study results and figures are stored in `results/oulad/`.
+
+Configuration, package versions, and file fingerprints are recorded in:
+
+- `results/oulad/experimental_settings.json`
+- `results/oulad/environment_freeze.txt`
+
+The record describes the environment when it was captured after analysis.
+
+## Repository handling
+
+Keep raw and processed data excluded through `.gitignore`.
+Only aggregate results and approved study documentation should be staged.
+
+Before committing, check:
+
+    git ls-files data .venv
+    git status --short
+
+The expected tracked contents under `data/` are this README and the
+`.gitkeep` placeholders. The virtual environment should not be tracked.

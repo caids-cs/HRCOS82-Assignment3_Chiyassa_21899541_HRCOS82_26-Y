@@ -1,0 +1,3 @@
+comparison,metric,observed_difference,CI_95_lower,CI_95_upper,includes_zero,bootstrap_repetitions
+ebm minus logistic_regression,positive_class_F1,-0.0048976030079296295,-0.011924607293294332,0.0016125044682167658,True,1000
+xgboost minus logistic_regression,positive_class_F1,-0.011844735927841521,-0.0201151483957777,-0.003365277721392293,False,1000

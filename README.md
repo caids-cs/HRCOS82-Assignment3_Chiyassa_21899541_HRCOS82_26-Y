@@ -1,115 +1,168 @@
-# CAIDS Reference Pipeline
+# An Interpretable Machine Learning Framework for Analysing Learner Engagement Patterns in E-Learning Environments
 
-A shared starting point for predictive modelling on event logs, used across the
-research programme of the Centre for Augmented Intelligence and Data Sciences at
-UNISA.
+**Author:** Carol Mwaba Chiyassa
+**Student number:** 21899541
+**Module:** HRCOS82 — BSc Honours Computing, UNISA
 
-The same code handles two kinds of data that look different and are not:
+## Study overview
 
-| | entity | events | label |
-|---|---|---|---|
-| **E-learning** | a student | LMS interactions | dropped out / did not |
-| **DevOps** | a release | pipeline activities | deployment failed / did not |
+This repository compares logistic regression, Explainable Boosting Machines
+(EBM), and XGBoost using the Open University Learning Analytics Dataset
+(OULAD). A majority-class classifier provides a reference baseline.
 
-Once both are written in the canonical schema (`entity_id, timestamp, event_type, value`),
-one feature builder, one splitting rule, one model set and one evaluation serve both.
+Early online activity and learner characteristics are used to predict final
+academic risk. Activity measures represent aspects of behavioural engagement;
+the prediction target is an academic outcome, not a direct engagement label.
 
----
+The supplied assignment template was used as a structural guide. The results
+reported here come from the OULAD analysis, not the template's synthetic example.
 
-## Run it in three minutes
+## Data and prediction window
 
-You do not need any data. The repository generates its own.
+Features use activity recorded on days 0–30 inclusive. Prediction is therefore
+made after day 30.
 
-```bash
-conda env create -f environment.yml
-conda activate caids
-python run.py
-```
+Enrolments with recorded withdrawal on or before day 30 are excluded.
+Missing withdrawal dates are retained as no recorded withdrawal.
+Eligible enrolments without activity in the window receive zero activity counts.
 
-That produces figures in `results/figures/` and tables in `results/tables/`.
+The final dataset contains 27,466 enrolments from 24,787 unique learners.
 
-Other things to try:
+Target coding:
 
-```bash
-python run.py --domain devops          # the other synthetic domain
-python run.py --cutoff 0.5             # predict from the first half of the window
-python run.py --no-balance             # see what class imbalance does to recall
-python run.py --events data/raw/events.csv --labels data/raw/labels.csv
-```
+- 0: Pass or Distinction — 15,385 enrolments.
+- 1: Fail or Withdrawn — 12,081 enrolments.
 
----
+Numeric predictors:
 
-## What the pipeline enforces
+- Previous attempts.
+- Studied credits.
+- Total clicks during the observation window.
+- Number of active days during the observation window.
 
-Three rules are built into the code rather than left to your discipline.
+Categorical predictors:
 
-**Split before you fit anything.** Scalers and imputers live inside a scikit-learn
-`Pipeline`, so they are fitted on the training fold only. Fitting them beforehand
-inflates every number you would then report — it is the most common serious error
-in this kind of work, and it is invisible in the output.
+- Module and presentation.
+- Gender and region.
+- Highest education and deprivation band.
+- Age band and disability status.
 
-**Always run a baseline.** A majority-class classifier and a logistic regression run
-every time. If your random forest cannot beat logistic regression, that is a finding
-and you must report it, not bury it.
+Learner identifiers are used for grouping, not prediction. Assessment scores
+are excluded because their availability at the prediction point was not verified.
 
-**Never trust accuracy on imbalanced data.** With an 18% positive rate, predicting
-"nobody" scores 82%. The pipeline prints the majority-class accuracy next to your
-model's so the comparison is unavoidable, and it reports recall, F1 and average
-precision alongside.
+## Evaluation design
 
-It also re-runs under several random seeds, because one run is an anecdote.
+The primary split uses random seed 42:
 
----
+- Training: 21,973 enrolments from 19,831 learners.
+- Test: 5,493 enrolments from 4,956 learners.
+- Learner overlap between training and test: zero.
 
-## Layout
+Five learner-separated validation folds are used within the training data.
+Preprocessing is fitted within each training fold.
 
-```
-run.py                one command, end to end
-src/data.py           the canonical schema, loaders, synthetic generators
-src/features.py       event log -> one row per entity, with the cutoff rule
-src/modelling.py      splitting, models, metrics, stability, importance
-src/report.py         figures and tables
-data/raw/             your data goes here and is NEVER committed
-data/processed/       generated, also never committed
-results/              figures and tables — DO commit these
-docs/PROTOCOL.md      the modelling protocol every project follows
-docs/STUDENT_START_HERE.md
-docs/SUPERVISION.md   how this repository is used in supervision
-tests/                run with `pytest`
-```
+Unweighted and balanced training are compared using mean validation
+positive-class F1. Balanced training is selected for all three candidate models.
+Logistic regression is selected before test evaluation because it has the
+highest mean validation F1.
 
----
+The test set is used for final evaluation of the fixed model configurations.
+Decision thresholds are not tuned.
 
-## Data: read this before you add any
+## Primary held-out test results
 
-**No learner data, personal data or institutional data is ever committed to this
-repository.** Not to a private one either.
+Precision, recall, and F1 refer to the positive class: Fail or Withdrawn.
 
-Research in this programme runs under ethics clearance **9396** and the Protection
-of Personal Information Act. Raw data lives in the secure location your supervisor
-gives you; `data/raw/` is git-ignored so that an accidental `git add .` cannot
-publish it. See `data/README.md`.
+| Model | Accuracy | Precision | Recall | F1 | ROC-AUC | Average precision |
+|---|---:|---:|---:|---:|---:|---:|
+| Majority baseline | 0.5602 | 0.0000 | 0.0000 | 0.0000 | 0.5000 | 0.4398 |
+| Logistic regression | 0.6785 | 0.6227 | 0.6825 | 0.6513 | 0.7384 | 0.6951 |
+| EBM | 0.6829 | 0.6343 | 0.6589 | 0.6464 | 0.7420 | 0.7062 |
+| XGBoost | 0.6836 | 0.6410 | 0.6378 | 0.6394 | 0.7413 | 0.7078 |
 
-If you believe you have committed data by mistake, stop and tell your supervisor
-immediately. Do not simply delete the file — git keeps the history.
+Logistic regression has the highest test F1 and recall. XGBoost has the
+highest accuracy, precision, and average precision. EBM has the highest
+test ROC-AUC. No model leads on every metric.
 
----
+## Interpretation and uncertainty
 
-## Using it for your own project
+Permutation importance measures the decrease in positive-class F1 after
+shuffling a predictor. Active days, module, and highest education are the
+three highest-ranked predictors for each candidate model.
 
-Do not modify `src/` to fit your data. Write a small adapter that converts your
-data into the canonical schema, put it in `src/`, and leave the rest alone. That is
-what makes your results comparable with the rest of the cohort — and comparability
-is what turns a set of separate projects into a research programme.
+These importance values describe model reliance. They do not establish
+causality or the direction of an association.
 
-Add your own models to `make_models()` in `src/modelling.py`. Keep the baselines.
+A paired bootstrap with 1,000 learner-level resamples gives:
 
----
+| F1 comparison | Observed difference | 95% percentile interval |
+|---|---:|---|
+| EBM minus logistic regression | -0.00490 | [-0.01192, 0.00161] |
+| XGBoost minus logistic regression | -0.01184 | [-0.02012, -0.00337] |
 
-## Citing this
+The EBM comparison includes zero and does not establish a clear F1 difference.
+The XGBoost comparison favours logistic regression under this procedure.
+These exploratory intervals are conditional on the fitted models and are
+not adjusted for multiple comparisons.
 
-If you use this pipeline in a dissertation or a paper, cite it — see `CITATION.cff`.
+Across five seeds, mean F1 and sample standard deviation are:
 
-## Licence
+- Logistic regression: 0.6522 ± 0.0026.
+- EBM: 0.6495 ± 0.0022.
+- XGBoost: 0.6428 ± 0.0036.
 
-MIT. See `LICENSE`.
+These runs assess sensitivity to splitting and fitting randomness with
+the selected settings held fixed. They are not independent replications.
+
+## Results and figures
+
+Study outputs are stored in `results/oulad/`.
+
+- `tables/`: validation, test, importance, bootstrap, and stability results.
+- `figures/test_confusion_matrices.png`: test classification counts.
+- `figures/test_roc_curves.png`: test ROC curves.
+- `figures/permutation_importance_logistic_regression.png`.
+- `figures/permutation_importance_ebm.png`.
+- `figures/permutation_importance_xgboost.png`.
+- `selected_settings.json`: settings selected using training validation.
+- `experimental_settings.json`: recorded experiment configuration.
+- `environment_freeze.txt`: recorded installed package versions.
+
+Fitted models and individual predictions are stored locally under
+`data/processed/`.
+
+## Running the project
+
+Use a Python virtual environment and install the project dependencies
+from `requirements.txt`.
+
+Place the original OULAD files below in `data/raw/`:
+
+- `studentInfo.csv`
+- `studentRegistration.csv`
+- `studentVle.csv`
+
+Check required file availability:
+
+    python run.py --check
+
+Run the complete workflow in a fresh output directory:
+
+    python run.py
+
+The runner stops when existing study outputs are present, protecting them
+from an accidental rerun. The file check only checks file availability;
+it does not validate the analysis.
+
+The recorded environment uses Python 3.14.0 on Windows 11. Full package
+versions are recorded in `results/oulad/environment_freeze.txt`.
+
+## Limitations
+
+The study uses one dataset and one observation window. Learners who register
+late have shorter exposure within that window. Results do not establish
+performance at other institutions or on future presentations.
+
+Predictive stability does not demonstrate explanation stability.
+Educator comprehension, intervention effectiveness, and causal effects
+were not evaluated.

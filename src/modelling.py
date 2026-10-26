@@ -1,40 +1,41 @@
 """
-Splitting, models and evaluation.
+Model development and evaluation for the OULAD study.
 
-THREE RULES ENFORCED HERE
--------------------------
-1. Split first. Nothing - no scaler, no imputer, no feature selection - is
-   fitted before the data is divided. Every transformer lives inside a
-   scikit-learn Pipeline, so it is fitted on the training fold only. This is
-   not stylistic; fitting before the split inflates every number you report.
+Study comparison:
+- Logistic regression
+- Explainable Boosting Machine (EBM)
+- XGBoost
 
-2. Baseline first. A majority-class classifier and a logistic regression are
-   always run. If your sophisticated model cannot beat logistic regression,
-   you have learned something real and you must report it.
+A majority-class classifier provides an additional reference.
 
-3. Never trust accuracy on imbalanced data. If 18% of students drop out, a
-   model that predicts "nobody drops out" is 82% accurate and useless. The
-   evaluation below always reports recall, F1 and average precision alongside
-   accuracy, and always prints the majority-class accuracy next to your own so
-   the comparison is impossible to avoid.
+Preprocessing is fitted within training folds. Evaluation uses
+learner-separated partitions and reports predictive performance,
+variability across random seeds, and permutation importance.
+
+Implementation status:
+The functions below are being adapted from the supplied template.
 """
 
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from sklearn.base import clone
+from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.dummy import DummyClassifier
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
+from sklearn.compose import ColumnTransformer
+from interpret.glassbox import ExplainableBoostingClassifier
+from xgboost import XGBClassifier
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.inspection import permutation_importance
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (accuracy_score, average_precision_score,
                              confusion_matrix, f1_score, precision_score,
                              recall_score, roc_auc_score)
-from sklearn.model_selection import StratifiedKFold, cross_val_predict, train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.tree import DecisionTreeClassifier
+
+
 
 
 # --------------------------------------------------------------------------
@@ -54,38 +55,89 @@ def split(X: pd.DataFrame, y: pd.Series, test_size: float = 0.2, seed: int = 42)
 # --------------------------------------------------------------------------
 # 2. Models
 # --------------------------------------------------------------------------
+def make_preprocessor():
+    """Prepare numeric and categorical OULAD predictors."""
 
-def make_models(seed: int = 42, balanced: bool = True) -> dict[str, Pipeline]:
-    """The standard model set. Every one is a Pipeline, so preprocessing is
-    fitted inside the cross-validation fold and never on the test set.
+    numeric_features = [
+        "num_of_prev_attempts",
+        "studied_credits",
+        "total_clicks",
+        "active_days",
+    ]
 
-    `balanced=True` sets class_weight='balanced', which tells the model that
-    the rare class matters as much as the common one. Report whether you used
-    it - it changes the results substantially.
-    """
-    cw = "balanced" if balanced else None
-    pre = [("impute", SimpleImputer(strategy="median")),
-           ("scale", StandardScaler())]
+    categorical_features = [
+        "code_module",
+        "code_presentation",
+        "gender",
+        "region",
+        "highest_education",
+        "imd_band",
+        "age_band",
+        "disability",
+    ]
 
-    return {
-        # Baseline 0: predicts the majority class, always. The number to beat.
-        "majority_baseline": Pipeline(pre + [
-            ("clf", DummyClassifier(strategy="most_frequent"))]),
+    numeric_pipeline = Pipeline([
+        ("impute", SimpleImputer(strategy="median")),
+        ("scale", StandardScaler()),
+    ])
 
-        # Baseline 1: the real baseline. Interpretable, fast, often excellent.
-        "logistic_regression": Pipeline(pre + [
-            ("clf", LogisticRegression(max_iter=2000, class_weight=cw,
-                                       random_state=seed))]),
+    categorical_pipeline = Pipeline([
+        ("impute", SimpleImputer(strategy="most_frequent")),
+        ("encode", OneHotEncoder(
+            handle_unknown="ignore",
+            sparse_output=False,
+        )),
+    ])
 
-        "decision_tree": Pipeline(pre + [
-            ("clf", DecisionTreeClassifier(max_depth=6, min_samples_leaf=20,
-                                           class_weight=cw, random_state=seed))]),
+    return ColumnTransformer([
+        ("numeric", numeric_pipeline, numeric_features),
+        ("categorical", categorical_pipeline, categorical_features),
+    ], remainder="drop")
 
-        "random_forest": Pipeline(pre + [
-            ("clf", RandomForestClassifier(n_estimators=400, max_depth=None,
-                                           min_samples_leaf=5, n_jobs=-1,
-                                           class_weight=cw, random_state=seed))]),
+def make_models(seed: int = 42) -> dict[str, Pipeline]:
+    """Create the study models with separate preprocessing pipelines."""
+
+    classifiers = {
+        "majority_baseline": DummyClassifier(
+            strategy="most_frequent"
+        ),
+
+        "logistic_regression": LogisticRegression(
+            C=1.0,
+            max_iter=5000,
+            random_state=seed,
+        ),
+
+        "ebm": ExplainableBoostingClassifier(
+            interactions=0,
+            outer_bags=8,
+            max_rounds=2000,
+            random_state=seed,
+            n_jobs=2,
+        ),
+
+        "xgboost": XGBClassifier(
+            n_estimators=300,
+            max_depth=3,
+            learning_rate=0.05,
+            subsample=1.0,
+            colsample_bytree=1.0,
+            eval_metric="logloss",
+            tree_method="hist",
+            random_state=seed,
+            n_jobs=2,
+        ),
     }
+
+    models = {}
+
+    for name, classifier in classifiers.items():
+        models[name] = Pipeline([
+            ("preprocess", make_preprocessor()),
+            ("clf", classifier),
+        ])
+
+    return models
 
 
 # --------------------------------------------------------------------------
@@ -107,23 +159,74 @@ def score(y_true, y_pred, y_proba=None) -> dict:
     return out
 
 
-def cross_validate_models(models: dict, X: pd.DataFrame, y: pd.Series,
-                          n_folds: int = 5, seed: int = 42) -> pd.DataFrame:
-    """Cross-validated performance on the TRAINING data only.
+def cross_validate_models(
+    models,
+    X_train,
+    y_train,
+    validation_folds,
+    balanced=False,
+):
+    """Evaluate models using the saved training validation folds."""
 
-    Use this to choose a model. Do not look at the test set until you have
-    chosen - once you tune on the test set it is no longer a test set.
-    """
-    cv = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
+    # Ensure predictors, labels and fold assignments line up.
+    assert X_train.index.equals(y_train.index)
+    assert X_train.index.equals(validation_folds.index)
+    assert set(validation_folds.unique()) == set(range(5))
+
     rows = []
-    for name, model in models.items():
-        pred = cross_val_predict(model, X, y, cv=cv, method="predict")
-        try:
-            proba = cross_val_predict(model, X, y, cv=cv, method="predict_proba")[:, 1]
-        except (AttributeError, IndexError):
-            proba = None
-        rows.append({"model": name, **score(y, pred, proba)})
-    return pd.DataFrame(rows).set_index("model").sort_values("f1", ascending=False)
+
+    for name, original_model in models.items():
+        # The majority reference should remain unweighted.
+        use_weights = balanced and name != "majority_baseline"
+
+        for fold in range(5):
+            fit_mask = validation_folds.ne(fold)
+            validation_mask = validation_folds.eq(fold)
+
+            X_fit = X_train.loc[fit_mask]
+            y_fit = y_train.loc[fit_mask]
+
+            X_validation = X_train.loc[validation_mask]
+            y_validation = y_train.loc[validation_mask]
+
+            # Start each fold with a fresh, unfitted pipeline.
+            model = clone(original_model)
+
+            fit_options = {}
+
+            if use_weights:
+                fit_options["clf__sample_weight"] = (
+                    compute_sample_weight(
+                        class_weight="balanced",
+                        y=y_fit,
+                    )
+                )
+
+            model.fit(X_fit, y_fit, **fit_options)
+
+            predictions = model.predict(X_validation)
+            probabilities = model.predict_proba(
+                X_validation
+            )[:, 1]
+
+            rows.append({
+                "model": name,
+                "balanced": use_weights,
+                "fold": fold,
+                **score(
+                    y_validation,
+                    predictions,
+                    probabilities,
+                ),
+            })
+
+            print(
+                f"{name}: fold {fold + 1}/5 complete "
+                f"(balanced={use_weights})",
+                flush=True,
+            )
+
+    return pd.DataFrame(rows)
 
 
 def evaluate_on_test(model, X_train, y_train, X_test, y_test) -> dict:
